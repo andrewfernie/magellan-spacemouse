@@ -28,13 +28,16 @@ int main() {
     tusb_init();
     stdio_init_all();
 
-    printf("hello\n");
+    // while(true){
+        printf("hello\n");
+    //     sleep_ms(1000);
+    // }
 
     gpio_set_function(SERIAL_MOUSE_RX_PIN, GPIO_FUNC_UART);
     gpio_set_function(SERIAL_MOUSE_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(SERIAL_MOUSE_CTS_PIN, GPIO_FUNC_UART);
     gpio_set_function(SERIAL_MOUSE_RTS_PIN, GPIO_FUNC_UART);
-    uart_init(SERIAL_MOUSE_UART, 9600);
+    uart_init(SERIAL_MOUSE_UART, 115200);
     uart_set_hw_flow(SERIAL_MOUSE_UART, true, true);
     uart_set_translate_crlf(SERIAL_MOUSE_UART, false);
     uart_set_format(SERIAL_MOUSE_UART, 8, 1, UART_PARITY_NONE);  // docs say 2 stop bits
@@ -87,11 +90,11 @@ int main() {
                         printf("\n");
 
                         trans_report[0] = values[0];
-                        trans_report[1] = values[2];
-                        trans_report[2] = -values[1];
-                        rot_report[0] = values[3];
-                        rot_report[1] = values[5];
-                        rot_report[2] = -values[4];
+                        trans_report[1] = values[1];
+                        trans_report[2] = values[2];
+                        rot_report[0] = values[4];
+                        rot_report[1] = -values[3];
+                        rot_report[2] = -values[5];
 
                         trans_pending = 1;
                         rot_pending = 1;
