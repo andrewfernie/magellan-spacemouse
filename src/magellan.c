@@ -7,6 +7,10 @@
 #include <hardware/uart.h>
 #include <pico/stdio.h>
 
+#define LOG_MSG_BASIC 1
+#define LOG_MSG_LEVEL 1  // 1=ERROR, 2=ERROR+WARN, 3=ERROR+WARN+INFO
+#define LOG_MSG_DEBUG 1
+#include "debug_msg.h"
 #define SERIAL_MOUSE_RX_PIN 21
 #define SERIAL_MOUSE_TX_PIN 20
 #define SERIAL_MOUSE_CTS_PIN 26
@@ -21,20 +25,23 @@ uint8_t trans_pending = 0;
 uint8_t rot_pending = 0;
 uint8_t buttons_pending = 0;
 
-uint8_t button_bits[] = { 12, 13, 14, 15, 22, 25, 23, 24, 0, 1, 2, 4, 5, 8, 26 };
+uint8_t button_bits[] = { 12, 13, 14, 15, 22, 25, 23, 24, 0, 1, 2, 4, 5, 8, 26, 3, 6, 7, 9 };
 
 int main() {
     board_init();
     tusb_init();
     stdio_init_all();
 
-    printf("hello\n");
+    // while(true){
+        printf("hello\n");
+    //     sleep_ms(1000);
+    // }
 
     gpio_set_function(SERIAL_MOUSE_RX_PIN, GPIO_FUNC_UART);
     gpio_set_function(SERIAL_MOUSE_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(SERIAL_MOUSE_CTS_PIN, GPIO_FUNC_UART);
     gpio_set_function(SERIAL_MOUSE_RTS_PIN, GPIO_FUNC_UART);
-    uart_init(SERIAL_MOUSE_UART, 9600);
+    uart_init(SERIAL_MOUSE_UART, 115200);
     uart_set_hw_flow(SERIAL_MOUSE_UART, true, true);
     uart_set_translate_crlf(SERIAL_MOUSE_UART, false);
     uart_set_format(SERIAL_MOUSE_UART, 8, 1, UART_PARITY_NONE);  // docs say 2 stop bits
@@ -65,9 +72,8 @@ int main() {
             char c = uart_getc(SERIAL_MOUSE_UART);
             buf[idx] = c;
             idx = (idx + 1) % sizeof(buf);
-            printf("%c", c);
+
             if (c == '\r') {
-                printf("\n");
 
                 switch (buf[0]) {
                     case 'd': {
@@ -82,16 +88,14 @@ int main() {
                                 values[i] += (buf[1 + i * 4 + 3 - j] & 0xf) << (4 * j);
                             }
 
-                            printf("%d %d ", i, values[i]);
                         }
-                        printf("\n");
 
                         trans_report[0] = values[0];
-                        trans_report[1] = values[2];
-                        trans_report[2] = -values[1];
-                        rot_report[0] = values[3];
-                        rot_report[1] = values[5];
-                        rot_report[2] = -values[4];
+                        trans_report[1] = values[1];
+                        trans_report[2] = values[2];
+                        rot_report[0] = values[4];
+                        rot_report[1] = -values[3];
+                        rot_report[2] = -values[5];
 
                         trans_pending = 1;
                         rot_pending = 1;
@@ -99,22 +103,40 @@ int main() {
                         break;
                     }
                     case 'k': {
-                        if (idx != 5) {
+                        uint8_t data_nibbles = 0;
+                        if (idx == 5) {
+                            data_nibbles = 3;
+                        } else if (idx == 6) {
+                            data_nibbles = 4;
+                        } else if (idx == 7) {
+                            data_nibbles = 5;
+                        } else {
                             break;
                         }
-                        uint16_t buttons = 0;
-                        for (int i = 0; i < 3; i++) {
+#if (LOG_MSG_DEBUG > 0)
+                        for (int i = 0; i < data_nibbles + 1; i++) {
+                            printf("%c", buf[i]);
+                        }
+                        printf("\n");
+#endif
+                        unsigned long int buttons = 0;
+                        for (int i = 0; i < data_nibbles; i++) {
                             buttons |= (buf[1 + i] & 0x0f) << (4 * i);
                         }
-                        printf("%04x\n", buttons);
+#if (LOG_MSG_DEBUG > 0)
+                        printf("Buttons: %08lX", buttons);
+#endif
 
                         memset(buttons_report, 0, sizeof(buttons_report));
 
-                        for (int i = 0; i < 12; i++) {
+                        for (int i = 0; i < data_nibbles * 4; i++) {
                             if (buttons & (1 << i)) {
                                 buttons_report[button_bits[i] / 8] |= 1 << (button_bits[i] % 8);
                             }
                         }
+#if (LOG_MSG_DEBUG > 0)
+                        printf("buttons_report: %02x %02x %02x %02x %02x %02x \n", buttons_report[0], buttons_report[1], buttons_report[2], buttons_report[3], buttons_report[4], buttons_report[5]);
+#endif
 
                         buttons_pending = 1;
                     }
